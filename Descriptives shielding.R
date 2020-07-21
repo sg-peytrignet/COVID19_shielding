@@ -38,9 +38,9 @@ rm(OA_to_higher_geo)
 ############################################################
 
 setwd(str_replace_all(path.expand("~"), "Documents", ""))
-setwd("/Users/sgpeytrignet/Dropbox (Personal)/THF/Shielding/Shapefiles/Local_Authority_Districts__December_2017__Boundaries_in_the_UK__WGS84_-shp/")
+setwd("/Users/sgpeytrignet/Dropbox (Personal)/THF/Shielding/Shapefiles/Local_Authority_Districts__December_2016__Generalised_Clipped_Boundaries_in_Great_Britain-shp/")
 
-LAD_2019_shp <- readOGR(dsn=".", layer="Local_Authority_Districts__December_2017__Boundaries_in_the_UK__WGS84_")
+LAD_2019_shp <- readOGR(dsn=".", layer="Local_Authority_Districts__December_2016__Generalised_Clipped_Boundaries_in_Great_Britain")
 LAD_2019_shp <- spTransform(LAD_2019_shp, CRS(latlong)) #Set to the same projection
 
 ##############################################
@@ -168,7 +168,7 @@ SPL_by_LA_All$Patient.Count <- as.numeric(SPL_by_LA_All$Patient.Count)
 SPL_by_LA_All <- dplyr::mutate(SPL_by_LA_All,Shielders_pct=Patient.Count/pop18*100) %>%
                   arrange(.,desc(Shielders_pct)) %>% as.data.table()
 
-#Histogram
+#Histogram of % shielder per LA
 
 ggplot(SPL_by_LA_All, aes(Shielders_pct, fill = cut(Shielders_pct, 100))) +
   geom_histogram(show.legend = FALSE) + theme_minimal() + labs(x = "% shielders", y = "n") +
@@ -262,7 +262,7 @@ ggplot(SPL_by_GOR) + geom_col(aes(x=reorder(RGN11NM, Shielders_pct), y = Shielde
 
 #Add data to shapefile
 
-LAD_2019_shp@data <- left_join(LAD_2019_shp@data,SPL_by_LA_All,by=c("lad17cd"="LA.Code"))
+LAD_2019_shp@data <- left_join(LAD_2019_shp@data,SPL_by_LA_All,by=c("lad16cd"="LA.Code"))
 
 #Create map
 
@@ -280,7 +280,7 @@ deciles <- round(quantile(LAD_2019_shp$Shielders_pct,
 #Labels
 labels <- sprintf(
   "<strong>%s</strong><br/>%g percent",
-  LAD_2019_shp$lad17nm, round(LAD_2019_shp$Shielders_pct,2)
+  LAD_2019_shp$lad16nm, round(LAD_2019_shp$Shielders_pct,2)
 ) %>% lapply(htmltools::HTML)
 
 #Map
