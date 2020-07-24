@@ -2,8 +2,16 @@
 ################### DEVELOPMENT IDEAS ####################
 ##########################################################
 
-#Gender disparity
+#Gender disparity: cannot look at reasons by gender using this data
 #Why are people shielding and does this vary across regions?
+
+#Isolate worst 10% and see why reasons vary (% cancer, % respiratory)
+#Do the same by Region
+#Bar chart (lowest to highest) for 'Respiratory' with horizontal line for England, and
+#bars coloured by shielders per capita
+
+#Same approach for why women have higher rates
+#Clustering: what type of shielders per area?
 
 ##############################################
 ################### SETUP ####################
@@ -31,7 +39,9 @@ setwd("/Users/sgpeytrignet/Dropbox (Personal)/THF/Shielding/")
 ################### GEO-DATA #################
 ##############################################
 
-OA_to_higher_geo <- fread("Other data/Output_Area_to_LSOA_to_MSOA_to_Local_Authority_District__December_2017__Lookup_with_Area_Classifications_in_Great_Britain.csv", header=TRUE, sep=",", check.names=T)
+OA_to_higher_geo <- fread(
+here::here('Other data','Output_Area_to_LSOA_to_MSOA_to_Local_Authority_District__December_2017__Lookup_with_Area_Classifications_in_Great_Britain.csv')
+, header=TRUE, sep=",", check.names=T)
 
 LSOA_to_higher_geo <- OA_to_higher_geo[, list(LSOA11NM = first(LSOA11NM), MSOA11CD = first(MSOA11CD),
                                               LAD17CD = first(LAD17CD), LAD17NM=first(LAD17NM),
@@ -86,20 +96,39 @@ pop_by_LA <- pop_by_LSOA[, list(pop18=sum(pop18),children18=sum(children18),
 ##############################################
 
 setwd(str_replace_all(path.expand("~"), "Documents", ""))
-setwd("/Users/sgpeytrignet/Dropbox (Personal)/THF/Shielding/Other data/IMD/")
+setwd("/Users/sgpeytrignet/Dropbox (Personal)/THF/Shielding/")
 
 #LSOA level
 
-IMD2019_LSOA <- fread("IMD_19_15_10.csv", header=TRUE, sep=",", check.names=T)
+IMD2019_LSOA <- fread(here::here('Other data','IMD','IMD_19_15_10.csv'), header=TRUE, sep=",", check.names=T)
 
 #LA level
 
-IMD2019_LA <- fread("Local authority/download1677836969253211150.csv", header=TRUE, sep=",", check.names=T) %>%
+IMD2019_LA <- fread(here::here('Other data','IMD','Local authority','download1677836969253211150.csv'), header=TRUE, sep=",", check.names=T) %>%
     filter(.,DateCode==2019)
 
-#LA level - average score
+ranks <- select(IMD2019_LA,'Measurement','Value','Indices.of.Deprivation') %>%
+  filter(.,Measurement=="Rank of average score"&Indices.of.Deprivation=="a. Index of Multiple Deprivation (IMD)") %>%
+  select(.,'Value') %>% unique(.)
 
-unique(IMD2019_LA$Indices.of.Deprivation)
+#LA level - rank of average score
+
+IMD2019_LA_rank_IMD <- filter(IMD2019_LA,Measurement=='Rank of average score'&
+                                    Indices.of.Deprivation=='a. Index of Multiple Deprivation (IMD)') %>%
+  rename(.,rank_imd=Value) %>% select(.,FeatureCode,rank_imd) %>%
+  mutate(.,decile_imd=cut(rank_imd, breaks=c(0,quantile(ranks$Value, probs = seq(0, 1, 1/10))[-1]), labels=1:10))
+
+IMD2019_LA_rank_Health <- filter(IMD2019_LA,Measurement=='Rank of average score'&
+                                       Indices.of.Deprivation=='e. Health Deprivation and Disability Domain') %>%
+  rename(.,rank_health=Value) %>% select(.,FeatureCode,rank_health) %>%
+  mutate(.,decile_health=cut(rank_health, breaks=c(0,quantile(ranks$Value, probs = seq(0, 1, 1/10))[-1]), labels=1:10))
+
+IMD2019_LA_rank_Income <- filter(IMD2019_LA,Measurement=='Rank of average score'&
+                                       Indices.of.Deprivation=='b. Income Deprivation Domain') %>%
+  rename(.,rank_income=Value) %>% select(.,FeatureCode,rank_income) %>%
+  mutate(.,decile_income=cut(rank_income, breaks=c(0,quantile(ranks$Value, probs = seq(0, 1, 1/10))[-1]), labels=1:10))
+
+#LA level - average score
 
 IMD2019_LA_avgscore_IMD <- filter(IMD2019_LA,Measurement=='Average Score'&
                                     Indices.of.Deprivation=='a. Index of Multiple Deprivation (IMD)') %>%
@@ -133,7 +162,10 @@ IMD2019_LA_wide <- left_join(IMD2019_LA_avgscore_IMD,IMD2019_LA_avgscore_Health,
     left_join(.,IMD2019_LA_pctdep_IMD,by="FeatureCode") %>%
     left_join(.,IMD2019_LA_pctdep_Health,by="FeatureCode") %>%
     left_join(.,IMD2019_LA_avgscore_Income,by="FeatureCode") %>%
-    left_join(.,IMD2019_LA_pctdep_Income,by="FeatureCode")
+    left_join(.,IMD2019_LA_pctdep_Income,by="FeatureCode") %>%
+    left_join(.,IMD2019_LA_rank_IMD,by="FeatureCode") %>%
+    left_join(.,IMD2019_LA_rank_Health,by="FeatureCode") %>%
+    left_join(.,IMD2019_LA_rank_Income,by="FeatureCode")
 
 # 'Rank of average score'
 # 'Average Score'
@@ -143,17 +175,12 @@ IMD2019_LA_wide <- left_join(IMD2019_LA_avgscore_IMD,IMD2019_LA_avgscore_Health,
 ################### NUMBER OF SHIELDERS BY LA ##############
 ############################################################
 
-#Number of shielders
-
 setwd(str_replace_all(path.expand("~"), "Documents", ""))
 setwd("/Users/sgpeytrignet/Dropbox (Personal)/THF/Shielding/SPL/")
 
 SPL_by_LA <- fread("Coronavirus Shielded Patient List, England - Open Data with CMO DG - LA - 2020-07-09.csv", header=TRUE, sep=",", check.names=T)
 
-# filter(SPL_by_LA,LA.Name=="Hackney")
-# SPL_by_LA[grepl("dorset", tolower(SPL_by_LA$LA.Name), fixed = TRUE),]
-
-#Merge in population numbers
+############ Merge in population numbers (you will lose some Local Authorities - the way the SPL is structured is non-standard)
 
 SPL_by_LA <- left_join(SPL_by_LA,pop_by_LA,by=c("LA.Code"="LAD17CD"))
 
@@ -165,7 +192,7 @@ cornwall_scilly <- filter(pop_by_LA,LAD17NM=="Cornwall")$pop18+filter(pop_by_LA,
 SPL_by_LA[SPL_by_LA$LA.Name %in% c("Hackney and City of London"),]$pop18 <- hackney_city_london
 SPL_by_LA[SPL_by_LA$LA.Name %in% c("Cornwall and Isles of Scilly"),]$pop18 <- cornwall_scilly
 
-#ALl shielders
+############ ALl shielders
 
 SPL_by_LA_All <- dplyr::filter(SPL_by_LA,Breakdown.Field=="ALL") %>%
   dplyr::filter(., LA.Code %in% unique(LSOA_to_higher_geo$LAD17CD))
@@ -175,11 +202,157 @@ SPL_by_LA_All$Patient.Count <- as.numeric(SPL_by_LA_All$Patient.Count)
 SPL_by_LA_All <- dplyr::mutate(SPL_by_LA_All,Shielders_pct=Patient.Count/pop18*100) %>%
                   arrange(.,desc(Shielders_pct)) %>% as.data.table()
 
-#Histogram of % shielder per LA
+############ Number of shielders by disease group
+
+#Subset of data
+SPL_by_LA_dgroup <- filter(SPL_by_LA,Breakdown.Field=="Disease Group") %>%
+  rename(.,Cases.Count=Patient.Count)
+
+#Clean up number variable
+SPL_by_LA_dgroup$Cases.Count[which(SPL_by_LA_dgroup$Cases.Count=="*")] <- NA
+SPL_by_LA_dgroup$Cases.Count <- as.numeric(SPL_by_LA_dgroup$Cases.Count)
+
+#Simplify groups
+SPL_by_LA_dgroup$group <- mapvalues(SPL_by_LA_dgroup$Breakdown.Value,
+from = c("Transplants (Solid)","Transplants (Haematological within 6 months)",
+"Transplants (Haematological with Immunosuppression)",
+"Cancer (Solid with Chemotherapy)","Cancer (Lung with Radical Radiotherapy)",
+"Cancer (Haematological within 24 months)","Respiratory (Severe Asthma)",
+"Respiratory (Severe COPD)","Respiratory (Severe Permanent)",
+"Corticosteroid Safety Card","Rare genetic metabolic and autoimmune diseases",
+"Immunosuppression Therapy","Pregnant with Congenital Heart Defect"),
+to = c("Transplants","Transplants","Transplants",
+"Cancer","Cancer","Cancer",
+"Respiratory","Respiratory","Respiratory",
+"Steroid","Rare genetic and autoimmune",
+"Immunosuppression Therapy",
+"Pregnant with Congenital Heart Defect"))
+
+SPL_by_LA_dgroup <- as.data.table(SPL_by_LA_dgroup)
+
+SPL_by_LA_dgroup <- SPL_by_LA_dgroup[, list(Cases.Count=sum(Cases.Count,na.rm=TRUE),
+                                            LA.Name=first(LA.Name),
+                                            pop18=first(pop18)),
+                                     by = list(LA.Code,group)]
+
+filter(SPL_by_LA_dgroup,LA.Name=="Camden")
+filter(SPL_by_LA_dgroup,LA.Name=="Liverpool")
+filter(SPL_by_LA_dgroup,LA.Name=="ENGLAND")
+
+#Statistics to compare 'reasons' between LA and England
+SPL_by_LA_dgroup <- within(SPL_by_LA_dgroup, {Cases.Total = ave(Cases.Count,LA.Code,FUN=sum)} )
+SPL_by_LA_dgroup <- mutate(SPL_by_LA_dgroup,Cases.Pct=Cases.Count/Cases.Total*100)
+SPL_by_LA_dgroup <- mutate(SPL_by_LA_dgroup,Cases.Prev.1000=Cases.Count/pop18*1000)
+
+#Merge-in the English averages
+
+England.rates <- filter(SPL_by_LA_dgroup,LA.Name=="ENGLAND") %>%
+  select(.,group,Cases.Pct) %>% rename(.,Cases.Pct.England=Cases.Pct)
+
+SPL_by_LA_dgroup <- left_join(SPL_by_LA_dgroup,England.rates,by="group") %>%
+  mutate(.,Cases.Pct.Differential=Cases.Pct-Cases.Pct.England)
+
+#Merge-in the LA-level shielder rate
+
+SPL_by_LA_dgroup <- left_join(SPL_by_LA_dgroup,dplyr::select(SPL_by_LA_All,LA.Code,RGN11CD,RGN11NM,Shielders_pct),
+                              by="LA.Code")
+
+#Flag high rates of certain conditions
+
+SPL_by_LA_dgroup$over50_pct <- ifelse(SPL_by_LA_dgroup$Cases.Pct>=50,1,0)
+SPL_by_LA_dgroup$over30_pct <- ifelse(SPL_by_LA_dgroup$Cases.Pct>=30,1,0)
+SPL_by_LA_dgroup$over20_pct <- ifelse(SPL_by_LA_dgroup$Cases.Pct>=20,1,0)
+SPL_by_LA_dgroup$levels_pct <- cut(SPL_by_LA_dgroup$Cases.Pct, breaks=c(-Inf,40,50,60,Inf), labels=1:4)
+
+filter(SPL_by_LA_dgroup,LA.Name=="ENGLAND")
+filter(SPL_by_LA_dgroup,LA.Name=="Camden")
+filter(SPL_by_LA_dgroup,LA.Name=="Liverpool")
+
+#################################################################
+################### Histogram of % shielder per LA ##############
+#################################################################
 
 ggplot(SPL_by_LA_All, aes(Shielders_pct, fill = cut(Shielders_pct, 100))) +
   geom_histogram(show.legend = FALSE) + theme_minimal() + labs(x = "% shielders", y = "n") +
   ggtitle("Histogram") + scale_fill_discrete(h = c(240, 10), c = 120, l = 70)
+
+###########################################################################
+############## Bar chart per condition - national discrepancy #############
+###########################################################################
+
+filter(SPL_by_LA_dgroup,LA.Name=="ENGLAND")
+filter(SPL_by_LA_dgroup,LA.Name=="Liverpool")
+sum(filter(SPL_by_LA_dgroup,LA.Name=="Liverpool")$Cases.Pct)
+
+#####Respiratory (this is driving differences!)
+
+# ggplot(filter(SPL_by_LA_dgroup,group=="Respiratory"), aes(Cases.Pct, fill = cut(Cases.Pct, 100))) +
+#   geom_histogram(show.legend = FALSE) + theme_minimal() + labs(x = "% cases", y = "n") +
+#   ggtitle("Respiratory conditions") + scale_fill_discrete(h = c(240, 10), c = 120, l = 70)
+
+ggplot(filter(SPL_by_LA_dgroup,group=="Respiratory"), aes(x=Cases.Pct.Differential, y=Shielders_pct)) + 
+  geom_point()+
+  geom_smooth(method=lm, se=FALSE)
+
+ggplot(filter(SPL_by_LA_dgroup,group=="Respiratory"), aes(x=Shielders_pct, y=Cases.Pct)) +
+  geom_point() +
+  geom_text(aes(label=LA.Name), size=2)
+
+ggplot(filter(SPL_by_LA_dgroup,group=="Respiratory"), aes(x=Shielders_pct, y=Cases.Prev.1000)) +
+  geom_point() +
+  geom_text(aes(label=LA.Name), size=2)
+
+ggplot(filter(SPL_by_LA_dgroup,group=="Respiratory")) +
+  ylim(0, 10) +
+  geom_col(aes(x=reorder(LA.Name, Shielders_pct), y = Shielders_pct,fill = factor(over50_pct))) +
+  scale_fill_manual(values=c("#3288bd","#d53e4f"),name = "Respiratory cases",labels = c("<50%", ">50%")) +
+  theme(panel.border = element_blank(),
+        panel.grid.major = element_blank(),panel.grid.minor = element_blank(),
+        axis.text.x=element_blank(),axis.ticks.x=element_blank(),
+        panel.background = element_blank()) +
+  geom_hline(aes(yintercept=4.2),col="black", linetype="dashed") +
+  annotate(geom="text", label="4.2% (average)", x=35, y=4.2, vjust=-1,size=3) +
+  labs(title="Shielding patients by local authority",y = "% shielding",x="Local authority")
+
+ggplot(filter(SPL_by_LA_dgroup,group=="Respiratory")) +
+  ylim(0, 10) +
+  geom_col(aes(x=reorder(LA.Name, Shielders_pct), y = Shielders_pct,fill = factor(levels_pct))) +
+  scale_fill_brewer(palette="Spectral",name = "Respiratory cases",direction = -1,labels = c("<40%", "40-50%","50-60%",">60%")) +
+  theme(panel.border = element_blank(),
+        panel.grid.major = element_blank(),panel.grid.minor = element_blank(),
+        axis.text.x=element_blank(),axis.ticks.x=element_blank(),
+        panel.background = element_blank()) +
+  geom_hline(aes(yintercept=4.2),col="black", linetype="dashed") +
+  annotate(geom="text", label="4.2% (average)", x=35, y=4.2, vjust=-1,size=3) +
+  labs(title="Shielding patients by local authority",y = "% shielding",x="Local authority")
+
+#####Cancer
+
+# ggplot(filter(SPL_by_LA_dgroup,group=="Cancer"), aes(Cases.Pct, fill = cut(Cases.Pct, 100))) +
+#   geom_histogram(show.legend = FALSE) + theme_minimal() + labs(x = "% cases", y = "n") +
+#   ggtitle("Cancer") + scale_fill_discrete(h = c(240, 10), c = 120, l = 70)
+
+ggplot(filter(SPL_by_LA_dgroup,group=="Cancer"), aes(x=Cases.Pct.Differential, y=Shielders_pct)) + 
+  geom_point()+
+  geom_smooth(method=lm, se=FALSE)
+
+ggplot(filter(SPL_by_LA_dgroup,group=="Cancer"), aes(x=Shielders_pct, y=Cases.Pct)) +
+  geom_point() +
+  geom_text(aes(label=LA.Name), size=2)
+
+ggplot(filter(SPL_by_LA_dgroup,group=="Cancer"), aes(x=Shielders_pct, y=Cases.Prev.1000)) +
+  geom_point() +
+  geom_text(aes(label=LA.Name), size=2)
+
+#####Rare genetic and autoimmune
+
+ggplot(filter(SPL_by_LA_dgroup,group=="Rare genetic and autoimmune"), aes(Cases.Pct, fill = cut(Cases.Pct, 100))) +
+  geom_histogram(show.legend = FALSE) + theme_minimal() + labs(x = "% cases", y = "n") +
+  ggtitle("Rare genetic and autoimmune") + scale_fill_discrete(h = c(240, 10), c = 120, l = 70)
+
+ggplot(filter(SPL_by_LA_dgroup,group=="Rare genetic and autoimmune"), aes(x=Cases.Pct.Differential, y=Shielders_pct)) + 
+  geom_point()+
+  geom_smooth(method=lm, se=FALSE)
 
 ######################################################################
 ################### Number of shielders vs. deprivation ##############
@@ -187,7 +360,7 @@ ggplot(SPL_by_LA_All, aes(Shielders_pct, fill = cut(Shielders_pct, 100))) +
 
 SPL_by_LA_All <- left_join(SPL_by_LA_All,IMD2019_LA_wide,by=c("LA.Code"="FeatureCode"))
 
-SPL_by_LA_All$score_income_cat <- cut(SPL_by_LA_All$avgscore_income, breaks=c(0,0.05,0.075,0.1,0.125,0.150,0.2,Inf), labels=1:7)
+#SPL_by_LA_All$score_income_cat <- cut(SPL_by_LA_All$avgscore_income, breaks=c(0,0.05,0.075,0.1,0.125,0.150,0.2,Inf), labels=1:7)
 
 #General deprivation
 
@@ -223,18 +396,17 @@ SPL_by_LA_All <- as.data.table(SPL_by_LA_All)
 
 pct_shielding_by_income_dep <- SPL_by_LA_All[, list(
   Shielders_pct=weighted.mean(Shielders_pct,pop18)), 
-                         by = list(score_income_cat)]
+                         by = list(decile_income)]
 
 ggplot(pct_shielding_by_income_dep) +
-  geom_col(aes(x=reorder(score_income_cat, Shielders_pct), y = Shielders_pct)) +
-  geom_text(aes(x = score_income_cat, y = Shielders_pct + 0.15, label = round(Shielders_pct, 1))) +
+  geom_col(aes(x=decile_income, y = Shielders_pct),fill = "dodgerblue2") +
+  geom_text(aes(x = decile_income, y = Shielders_pct + 0.15, label = round(Shielders_pct, 1))) +
   theme(axis.title.x = element_blank(),
         panel.border = element_blank(),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank()) +
-  theme_economist() +
-  labs(title="Shielding population",y = "% shielding",x="Income deprivation score")
-
+  theme_economist() + scale_colour_economist() +
+  labs(title="Shielding population",y = "% shielding",x="Income deprivation decile")
 
 ######################################################################
 ################### Number of shielders vs. pct over 65 ##############
@@ -243,6 +415,26 @@ ggplot(pct_shielding_by_income_dep) +
 ggplot(SPL_by_LA_All, aes(x=pct_over65_18, y=Shielders_pct)) + 
   geom_point()+
   geom_smooth(method=lm, se=FALSE)
+
+SPL_by_LA_All <- mutate(SPL_by_LA_All,
+                        cat_pct_over65_18=cut(pct_over65_18, breaks=c(0,15,20,25,Inf),
+                                              labels=c("<15%","15-20%","20-25%",">25%")))
+
+SPL_by_LA_All <- as.data.table(SPL_by_LA_All)
+
+pct_shielding_by_ageg <- SPL_by_LA_All[, list(
+  Shielders_pct=weighted.mean(Shielders_pct,pop18)), 
+  by = list(cat_pct_over65_18)]
+
+ggplot(pct_shielding_by_ageg) +
+  geom_col(aes(x=cat_pct_over65_18, y = Shielders_pct),fill = "aquamarine3") +
+  geom_text(aes(x = cat_pct_over65_18, y = Shielders_pct + 0.15, label = round(Shielders_pct, 1))) +
+  theme(axis.title.x = element_blank(),
+        panel.border = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  theme_economist() + scale_colour_economist() +
+  labs(title="Shielding population",y = "% shielding",x="Over 65")
 
 ##############################################################
 ################### Number of shielders per GOR ##############
@@ -254,13 +446,14 @@ SPL_by_GOR <- SPL_by_LA_All[, list(Shielders_pct=weighted.mean(Shielders_pct,pop
                                 RGN11NM=first(RGN11NM)), 
                          by = list(RGN11CD)]
 
-ggplot(SPL_by_GOR) + geom_col(aes(x=reorder(RGN11NM, Shielders_pct), y = Shielders_pct)) +
+ggplot(SPL_by_GOR) + geom_col(aes(x=reorder(RGN11NM, Shielders_pct), y = Shielders_pct),fill = "cornflowerblue") +
   geom_text(aes(x = RGN11NM, y = Shielders_pct + 0.15, label = round(Shielders_pct, 1))) +
   theme(axis.title.x = element_blank(),
         panel.border = element_blank(),
         panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank()) +
-  theme_economist() +
+        panel.grid.minor = element_blank(),
+        axis.text.x=element_text(angle=45, hjust=1),
+        panel.background = element_blank()) +
   labs(title="Shielding population",y = "% shielding",x="")
 
 #################################################################################
