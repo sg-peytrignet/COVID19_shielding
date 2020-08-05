@@ -22,7 +22,7 @@ if (!require("pacman")) install.packages("pacman")
 pacman::p_load(dplyr,stringr,sp,ggplot2,plyr,
                gmodels,Rmisc,DescTools,data.table,
                Hmisc,tibble,leaflet,rgeos,raster,plotly,
-               pbapply,pbmcapply,here,rgdal,RColorBrewer,THFstyle,ggthemes)
+               pbapply,pbmcapply,here,rgdal,RColorBrewer,ggthemes)
 
 #Clean up the global environment
 rm(list = ls())
@@ -33,15 +33,15 @@ latlong="+init=epsg:4326"
 
 #Set directory
 setwd(str_replace_all(path.expand("~"), "Documents", ""))
-setwd("/Users/sgpeytrignet/Dropbox (Personal)/THF/Shielding/")
+setwd("M:/Analytics/Networked Data Lab/Shielding/")
 
 ##############################################
 ################### GEO-DATA #################
 ##############################################
 
 OA_to_higher_geo <- fread(
-here::here('Other data','Output_Area_to_LSOA_to_MSOA_to_Local_Authority_District__December_2017__Lookup_with_Area_Classifications_in_Great_Britain.csv')
-, header=TRUE, sep=",", check.names=T)
+  here::here('Other data','Output_Area_to_LSOA_to_MSOA_to_Local_Authority_District__December_2017__Lookup_with_Area_Classifications_in_Great_Britain.csv')
+  , header=TRUE, sep=",", check.names=T)
 
 LSOA_to_higher_geo <- OA_to_higher_geo[, list(LSOA11NM = first(LSOA11NM), MSOA11CD = first(MSOA11CD),
                                               LAD17CD = first(LAD17CD), LAD17NM=first(LAD17NM),
@@ -55,9 +55,9 @@ rm(OA_to_higher_geo)
 ############################################################
 
 setwd(str_replace_all(path.expand("~"), "Documents", ""))
-setwd("/Users/sgpeytrignet/Dropbox (Personal)/THF/Shielding/Shapefiles/Local_Authority_Districts__December_2016__Generalised_Clipped_Boundaries_in_Great_Britain-shp/")
+setwd("M:/Analytics/Networked Data Lab/Shielding/Shapefiles/Local_Authority_Districts__December_2016__Boundaries_UK-shp/")
 
-LAD_2019_shp <- readOGR(dsn=".", layer="Local_Authority_Districts__December_2016__Generalised_Clipped_Boundaries_in_Great_Britain")
+LAD_2019_shp <- readOGR(dsn=".", layer="Local_Authority_Districts__December_2016__Boundaries_UK")
 LAD_2019_shp <- spTransform(LAD_2019_shp, CRS(latlong)) #Set to the same projection
 
 ##############################################
@@ -67,11 +67,11 @@ LAD_2019_shp <- spTransform(LAD_2019_shp, CRS(latlong)) #Set to the same project
 #England and Wales
 
 setwd(str_replace_all(path.expand("~"), "Documents", ""))
-setwd("/Users/sgpeytrignet/Dropbox (Personal)/THF/Shielding/Other data/Mid-year population estimates/LSOA/")
+setwd("M:/Analytics/Networked Data Lab/Shielding/Other data/Mid-year population estimates/LSOA/")
 
 pop_by_LSOA <- fread("2011-to-2018-pop-post.csv", header=TRUE, sep=",", check.names=T,
                      select=c("lsoa11","pop18","children18","adults16plus18","over65_18","mean_age_18")) %>%
-              mutate(.,pct_over65_18=round(over65_18/pop18*100,1))
+  mutate(.,pct_over65_18=round(over65_18/pop18*100,1))
 
 #Join with geo-indicators
 
@@ -89,14 +89,14 @@ pop_by_LA <- pop_by_LSOA[, list(pop18=sum(pop18),children18=sum(children18),
                                 pct_over65_18=weighted.mean(pct_over65_18,pop18),
                                 LAD17NM=first(LAD17NM),RGN11CD = first(RGN11CD),
                                 RGN11NM=first(RGN11NM)), 
-                              by = list(LAD17CD)]
+                         by = list(LAD17CD)]
 
 ##############################################
 ################### DEPRIVATION ##############
 ##############################################
 
 setwd(str_replace_all(path.expand("~"), "Documents", ""))
-setwd("/Users/sgpeytrignet/Dropbox (Personal)/THF/Shielding/")
+setwd("M:/Analytics/Networked Data Lab/Shielding/")
 
 #LSOA level
 
@@ -105,7 +105,7 @@ IMD2019_LSOA <- fread(here::here('Other data','IMD','IMD_19_15_10.csv'), header=
 #LA level
 
 IMD2019_LA <- fread(here::here('Other data','IMD','Local authority','download1677836969253211150.csv'), header=TRUE, sep=",", check.names=T) %>%
-    filter(.,DateCode==2019)
+  filter(.,DateCode==2019)
 
 ranks <- select(IMD2019_LA,'Measurement','Value','Indices.of.Deprivation') %>%
   filter(.,Measurement=="Rank of average score"&Indices.of.Deprivation=="a. Index of Multiple Deprivation (IMD)") %>%
@@ -114,17 +114,17 @@ ranks <- select(IMD2019_LA,'Measurement','Value','Indices.of.Deprivation') %>%
 #LA level - rank of average score
 
 IMD2019_LA_rank_IMD <- filter(IMD2019_LA,Measurement=='Rank of average score'&
-                                    Indices.of.Deprivation=='a. Index of Multiple Deprivation (IMD)') %>%
+                                Indices.of.Deprivation=='a. Index of Multiple Deprivation (IMD)') %>%
   rename(.,rank_imd=Value) %>% select(.,FeatureCode,rank_imd) %>%
   mutate(.,decile_imd=cut(rank_imd, breaks=c(0,quantile(ranks$Value, probs = seq(0, 1, 1/10))[-1]), labels=1:10))
 
 IMD2019_LA_rank_Health <- filter(IMD2019_LA,Measurement=='Rank of average score'&
-                                       Indices.of.Deprivation=='e. Health Deprivation and Disability Domain') %>%
+                                   Indices.of.Deprivation=='e. Health Deprivation and Disability Domain') %>%
   rename(.,rank_health=Value) %>% select(.,FeatureCode,rank_health) %>%
   mutate(.,decile_health=cut(rank_health, breaks=c(0,quantile(ranks$Value, probs = seq(0, 1, 1/10))[-1]), labels=1:10))
 
 IMD2019_LA_rank_Income <- filter(IMD2019_LA,Measurement=='Rank of average score'&
-                                       Indices.of.Deprivation=='b. Income Deprivation Domain') %>%
+                                   Indices.of.Deprivation=='b. Income Deprivation Domain') %>%
   rename(.,rank_income=Value) %>% select(.,FeatureCode,rank_income) %>%
   mutate(.,decile_income=cut(rank_income, breaks=c(0,quantile(ranks$Value, probs = seq(0, 1, 1/10))[-1]), labels=1:10))
 
@@ -132,11 +132,11 @@ IMD2019_LA_rank_Income <- filter(IMD2019_LA,Measurement=='Rank of average score'
 
 IMD2019_LA_avgscore_IMD <- filter(IMD2019_LA,Measurement=='Average Score'&
                                     Indices.of.Deprivation=='a. Index of Multiple Deprivation (IMD)') %>%
-                            rename(.,avgscore_imd=Value) %>% select(.,FeatureCode,avgscore_imd)
+  rename(.,avgscore_imd=Value) %>% select(.,FeatureCode,avgscore_imd)
 
 IMD2019_LA_avgscore_Health <- filter(IMD2019_LA,Measurement=='Average Score'&
-                                    Indices.of.Deprivation=='e. Health Deprivation and Disability Domain') %>%
-                            rename(.,avgscore_health=Value) %>% select(.,FeatureCode,avgscore_health)
+                                       Indices.of.Deprivation=='e. Health Deprivation and Disability Domain') %>%
+  rename(.,avgscore_health=Value) %>% select(.,FeatureCode,avgscore_health)
 
 IMD2019_LA_avgscore_Income <- filter(IMD2019_LA,Measurement=='Average Score'&
                                        Indices.of.Deprivation=='b. Income Deprivation Domain') %>%
@@ -145,12 +145,12 @@ IMD2019_LA_avgscore_Income <- filter(IMD2019_LA,Measurement=='Average Score'&
 #LA level - % of LSOA among most deprived
 
 IMD2019_LA_pctdep_IMD <- filter(IMD2019_LA,Measurement=='Proportion of Lower-layer Super Output Areas (LSOAs) in most deprived 10% nationally'&
-                                    Indices.of.Deprivation=='a. Index of Multiple Deprivation (IMD)') %>%
-                            rename(.,pctdep_IMD=Value) %>% mutate(.,pctdep_IMD=100*pctdep_IMD) %>% select(.,FeatureCode,pctdep_IMD)
+                                  Indices.of.Deprivation=='a. Index of Multiple Deprivation (IMD)') %>%
+  rename(.,pctdep_IMD=Value) %>% mutate(.,pctdep_IMD=100*pctdep_IMD) %>% select(.,FeatureCode,pctdep_IMD)
 
 IMD2019_LA_pctdep_Health <- filter(IMD2019_LA,Measurement=='Proportion of Lower-layer Super Output Areas (LSOAs) in most deprived 10% nationally'&
-                                       Indices.of.Deprivation=='e. Health Deprivation and Disability Domain') %>%
-                            rename(.,pctdep_health=Value) %>% mutate(.,pctdep_health=100*pctdep_health) %>% select(.,FeatureCode,pctdep_health)
+                                     Indices.of.Deprivation=='e. Health Deprivation and Disability Domain') %>%
+  rename(.,pctdep_health=Value) %>% mutate(.,pctdep_health=100*pctdep_health) %>% select(.,FeatureCode,pctdep_health)
 
 IMD2019_LA_pctdep_Income <- filter(IMD2019_LA,Measurement=='Proportion of Lower-layer Super Output Areas (LSOAs) in most deprived 10% nationally'&
                                      Indices.of.Deprivation=='b. Income Deprivation Domain') %>%
@@ -159,13 +159,13 @@ IMD2019_LA_pctdep_Income <- filter(IMD2019_LA,Measurement=='Proportion of Lower-
 #Wide format
 
 IMD2019_LA_wide <- left_join(IMD2019_LA_avgscore_IMD,IMD2019_LA_avgscore_Health,by="FeatureCode") %>%
-    left_join(.,IMD2019_LA_pctdep_IMD,by="FeatureCode") %>%
-    left_join(.,IMD2019_LA_pctdep_Health,by="FeatureCode") %>%
-    left_join(.,IMD2019_LA_avgscore_Income,by="FeatureCode") %>%
-    left_join(.,IMD2019_LA_pctdep_Income,by="FeatureCode") %>%
-    left_join(.,IMD2019_LA_rank_IMD,by="FeatureCode") %>%
-    left_join(.,IMD2019_LA_rank_Health,by="FeatureCode") %>%
-    left_join(.,IMD2019_LA_rank_Income,by="FeatureCode")
+  left_join(.,IMD2019_LA_pctdep_IMD,by="FeatureCode") %>%
+  left_join(.,IMD2019_LA_pctdep_Health,by="FeatureCode") %>%
+  left_join(.,IMD2019_LA_avgscore_Income,by="FeatureCode") %>%
+  left_join(.,IMD2019_LA_pctdep_Income,by="FeatureCode") %>%
+  left_join(.,IMD2019_LA_rank_IMD,by="FeatureCode") %>%
+  left_join(.,IMD2019_LA_rank_Health,by="FeatureCode") %>%
+  left_join(.,IMD2019_LA_rank_Income,by="FeatureCode")
 
 # 'Rank of average score'
 # 'Average Score'
@@ -176,7 +176,7 @@ IMD2019_LA_wide <- left_join(IMD2019_LA_avgscore_IMD,IMD2019_LA_avgscore_Health,
 ############################################################
 
 setwd(str_replace_all(path.expand("~"), "Documents", ""))
-setwd("/Users/sgpeytrignet/Dropbox (Personal)/THF/Shielding/SPL/")
+setwd("M:/Analytics/Networked Data Lab/Shielding/SPL/")
 
 SPL_by_LA <- fread("Coronavirus Shielded Patient List, England - Open Data with CMO DG - LA - 2020-07-09.csv", header=TRUE, sep=",", check.names=T)
 
@@ -184,7 +184,7 @@ SPL_by_LA <- fread("Coronavirus Shielded Patient List, England - Open Data with 
 
 SPL_by_LA <- left_join(SPL_by_LA,pop_by_LA,by=c("LA.Code"="LAD17CD"))
 
-#Manually add in populationd data for rows that add together 2 LAs
+#Manually add in population data for rows that add together 2 LAs
 
 hackney_city_london <- filter(pop_by_LA,LAD17NM=="Hackney")$pop18+filter(pop_by_LA,LAD17NM=="City of London")$pop18
 cornwall_scilly <- filter(pop_by_LA,LAD17NM=="Cornwall")$pop18+filter(pop_by_LA,LAD17NM=="Isles of Scilly")$pop18
@@ -200,7 +200,7 @@ SPL_by_LA_All <- dplyr::filter(SPL_by_LA,Breakdown.Field=="ALL") %>%
 SPL_by_LA_All$Patient.Count <- as.numeric(SPL_by_LA_All$Patient.Count)
 
 SPL_by_LA_All <- dplyr::mutate(SPL_by_LA_All,Shielders_pct=Patient.Count/pop18*100) %>%
-                  arrange(.,desc(Shielders_pct)) %>% as.data.table()
+  arrange(.,desc(Shielders_pct)) %>% as.data.table()
 
 ############ Number of shielders by disease group
 
@@ -214,19 +214,19 @@ SPL_by_LA_dgroup$Cases.Count <- as.numeric(SPL_by_LA_dgroup$Cases.Count)
 
 #Simplify groups
 SPL_by_LA_dgroup$group <- mapvalues(SPL_by_LA_dgroup$Breakdown.Value,
-from = c("Transplants (Solid)","Transplants (Haematological within 6 months)",
-"Transplants (Haematological with Immunosuppression)",
-"Cancer (Solid with Chemotherapy)","Cancer (Lung with Radical Radiotherapy)",
-"Cancer (Haematological within 24 months)","Respiratory (Severe Asthma)",
-"Respiratory (Severe COPD)","Respiratory (Severe Permanent)",
-"Corticosteroid Safety Card","Rare genetic metabolic and autoimmune diseases",
-"Immunosuppression Therapy","Pregnant with Congenital Heart Defect"),
-to = c("Transplants","Transplants","Transplants",
-"Cancer","Cancer","Cancer",
-"Respiratory","Respiratory","Respiratory",
-"Steroid","Rare genetic and autoimmune",
-"Immunosuppression Therapy",
-"Pregnant with Congenital Heart Defect"))
+                                    from = c("Transplants (Solid)","Transplants (Haematological within 6 months)",
+                                             "Transplants (Haematological with Immunosuppression)",
+                                             "Cancer (Solid with Chemotherapy)","Cancer (Lung with Radical Radiotherapy)",
+                                             "Cancer (Haematological within 24 months)","Respiratory (Severe Asthma)",
+                                             "Respiratory (Severe COPD)","Respiratory (Severe Permanent)",
+                                             "Corticosteroid Safety Card","Rare genetic metabolic and autoimmune diseases",
+                                             "Immunosuppression Therapy","Pregnant with Congenital Heart Defect"),
+                                    to = c("Transplants","Transplants","Transplants",
+                                           "Cancer","Cancer","Cancer",
+                                           "Respiratory","Respiratory","Respiratory",
+                                           "Steroid","Rare genetic and autoimmune",
+                                           "Immunosuppression Therapy",
+                                           "Pregnant with Congenital Heart Defect"))
 
 SPL_by_LA_dgroup <- as.data.table(SPL_by_LA_dgroup)
 
@@ -396,7 +396,7 @@ SPL_by_LA_All <- as.data.table(SPL_by_LA_All)
 
 pct_shielding_by_income_dep <- SPL_by_LA_All[, list(
   Shielders_pct=weighted.mean(Shielders_pct,pop18)), 
-                         by = list(decile_income)]
+  by = list(decile_income)]
 
 ggplot(pct_shielding_by_income_dep) +
   geom_col(aes(x=decile_income, y = Shielders_pct),fill = "dodgerblue2") +
@@ -443,8 +443,8 @@ ggplot(pct_shielding_by_ageg) +
 SPL_by_LA_All <- as.data.table(SPL_by_LA_All)
 
 SPL_by_GOR <- SPL_by_LA_All[, list(Shielders_pct=weighted.mean(Shielders_pct,pop18),
-                                RGN11NM=first(RGN11NM)), 
-                         by = list(RGN11CD)]
+                                   RGN11NM=first(RGN11NM)), 
+                            by = list(RGN11CD)]
 
 ggplot(SPL_by_GOR) + geom_col(aes(x=reorder(RGN11NM, Shielders_pct), y = Shielders_pct),fill = "cornflowerblue") +
   geom_text(aes(x = RGN11NM, y = Shielders_pct + 0.15, label = round(Shielders_pct, 1))) +
@@ -470,12 +470,12 @@ LAD_2019_shp@data <- left_join(LAD_2019_shp@data,SPL_by_LA_All,by=c("lad16cd"="L
 colors <- colorRampPalette(brewer.pal(9, "Spectral"))(10)[10:1]
 
 pal.function <- colorQuantile(colors, LAD_2019_shp$Shielders_pct, n = 10, probs = seq(0, 1, length.out = 10
-                                                  + 1), na.color = "transparent", alpha = FALSE, reverse = FALSE,
-              right = FALSE)
+                                                                                      + 1), na.color = "transparent", alpha = FALSE, reverse = FALSE,
+                              right = FALSE)
 
 #Quantiles
 deciles <- round(quantile(LAD_2019_shp$Shielders_pct,
-               prob = seq(0, 1, length = 11), type = 5,na.rm=TRUE),1)
+                          prob = seq(0, 1, length = 11), type = 5,na.rm=TRUE),1)
 
 #Labels
 labels <- sprintf(
@@ -497,7 +497,7 @@ leaflet(LAD_2019_shp) %>%
       style = list("font-weight" = "normal", padding = "3px 8px"),
       textsize = "15px",
       direction = "auto")) %>% addLegend(
-    position = "bottomright",
-    colors = colors,
-    labels = deciles[1:10], opacity = 1
-  )
+        position = "bottomright",
+        colors = colors,
+        labels = deciles[1:10], opacity = 1
+      )
