@@ -19,10 +19,20 @@
 
 #Load packages
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load(dplyr,stringr,sp,ggplot2,plyr,
+pacman::p_load(dplyr,stringr,sp,ggplot2,plyr,readODS,
                gmodels,Rmisc,DescTools,data.table,
                Hmisc,tibble,leaflet,rgeos,raster,plotly,
-               pbapply,pbmcapply,here,rgdal,RColorBrewer,ggthemes)
+               pbapply,pbmcapply,here,rgdal,RColorBrewer,ggthemes,
+               ggchicklet,tidyverse,showtext,ggchicklet)
+
+#install.packages("ggchicklet", repos = "https://cinc.rud.is")
+
+#Load fonts
+
+#font_add_google("Roboto Mono", "roboto-mono")
+#font_add_google("Roboto", "roboto")
+font_add_google("Quicksand", "quicksand")
+showtext_auto()
 
 #Clean up the global environment
 rm(list = ls())
@@ -39,9 +49,7 @@ setwd("M:/Analytics/Networked Data Lab/Shielding/")
 ################### GEO-DATA #################
 ##############################################
 
-OA_to_higher_geo <- fread(
-  here::here('Other data','Output_Area_to_LSOA_to_MSOA_to_Local_Authority_District__December_2017__Lookup_with_Area_Classifications_in_Great_Britain.csv')
-  , header=TRUE, sep=",", check.names=T)
+OA_to_higher_geo <- fread("Other data/Output_Area_to_LSOA_to_MSOA_to_Local_Authority_District__December_2017__Lookup_with_Area_Classifications_in_Great_Britain.csv", header=TRUE, sep=",", check.names=T)
 
 LSOA_to_higher_geo <- OA_to_higher_geo[, list(LSOA11NM = first(LSOA11NM), MSOA11CD = first(MSOA11CD),
                                               LAD17CD = first(LAD17CD), LAD17NM=first(LAD17NM),
@@ -100,11 +108,11 @@ setwd("M:/Analytics/Networked Data Lab/Shielding/")
 
 #LSOA level
 
-IMD2019_LSOA <- fread(here::here('Other data','IMD','IMD_19_15_10.csv'), header=TRUE, sep=",", check.names=T)
+IMD2019_LSOA <- fread("Other data/IMD/IMD_19_15_10.csv", header=TRUE, sep=",", check.names=T)
 
 #LA level
 
-IMD2019_LA <- fread(here::here('Other data','IMD','Local authority','download1677836969253211150.csv'), header=TRUE, sep=",", check.names=T) %>%
+IMD2019_LA <- fread("Other data/IMD/Local authority/download1677836969253211150.csv", header=TRUE, sep=",", check.names=T) %>%
   filter(.,DateCode==2019)
 
 ranks <- select(IMD2019_LA,'Measurement','Value','Indices.of.Deprivation') %>%
@@ -171,14 +179,36 @@ IMD2019_LA_wide <- left_join(IMD2019_LA_avgscore_IMD,IMD2019_LA_avgscore_Health,
 # 'Average Score'
 # 'Proportion of Lower-layer Super Output Areas (LSOAs) in most deprived 10% nationally'
 
-############################################################
-################### NUMBER OF SHIELDERS BY LA ##############
-############################################################
+########################################################################
+################### NUMBER OF SHIELDERS BY LA: Wales ################### 
+########################################################################
+
+setwd(str_replace_all(path.expand("~"), "Documents", ""))
+setwd("M:/Analytics/Networked Data Lab/Shielding/SPL/Wales/")
+
+SPL_by_LA_Wales <- read_ods("shielded-patient-list-in-wales-during-the-coronavirus-covid-19-pandemic-as-at-27-july-2020-182.ods", skip=4,sheet="Table_1",col_names=TRUE)
+SPL_by_LA_Wales <- dplyr::filter(SPL_by_LA_Wales,is.na(SPL_by_LA_Wales$'Local Authority Code')==FALSE) %>%
+  rename(.,LA.Code='Local Authority Code',Patient.Count='All Ages',LA.Name='Local Authority Name') %>%
+  select(.,LA.Code,Patient.Count,LA.Name)
+
+############ ALl shielders: Wales
+
+SPL_by_LA_Wales_All <- dplyr::filter(SPL_by_LA_Wales, LA.Code %in% unique(LSOA_to_higher_geo$LAD17CD))
+
+SPL_by_LA_Wales_All$Patient.Count <- as.numeric(SPL_by_LA_Wales_All$Patient.Count)
+
+SPL_by_LA_Wales_All$Breakdown.Field <- "ALL"
+
+####################################################################################
+################### NUMBER OF SHIELDERS BY LA: England and Wales ################### 
+####################################################################################
 
 setwd(str_replace_all(path.expand("~"), "Documents", ""))
 setwd("M:/Analytics/Networked Data Lab/Shielding/SPL/")
 
-SPL_by_LA <- fread("Coronavirus Shielded Patient List, England - Open Data with CMO DG - LA - 2020-07-09.csv", header=TRUE, sep=",", check.names=T)
+SPL_by_LA <- fread("Coronavirus Shielded Patient List, England - Open Data with CMO DG - LA - 2020-07-30.csv", header=TRUE, sep=",", check.names=T)
+
+SPL_by_LA <- rbind.fill(SPL_by_LA,SPL_by_LA_Wales_All)
 
 ############ Merge in population numbers (you will lose some Local Authorities - the way the SPL is structured is non-standard)
 
@@ -201,6 +231,8 @@ SPL_by_LA_All$Patient.Count <- as.numeric(SPL_by_LA_All$Patient.Count)
 
 SPL_by_LA_All <- dplyr::mutate(SPL_by_LA_All,Shielders_pct=Patient.Count/pop18*100) %>%
   arrange(.,desc(Shielders_pct)) %>% as.data.table()
+
+filter(SPL_by_LA_All,RGN11NM=="Wales")
 
 ############ Number of shielders by disease group
 
@@ -290,9 +322,9 @@ sum(filter(SPL_by_LA_dgroup,LA.Name=="Liverpool")$Cases.Pct)
 #   geom_histogram(show.legend = FALSE) + theme_minimal() + labs(x = "% cases", y = "n") +
 #   ggtitle("Respiratory conditions") + scale_fill_discrete(h = c(240, 10), c = 120, l = 70)
 
-ggplot(filter(SPL_by_LA_dgroup,group=="Respiratory"), aes(x=Cases.Pct.Differential, y=Shielders_pct)) + 
-  geom_point()+
-  geom_smooth(method=lm, se=FALSE)
+# ggplot(filter(SPL_by_LA_dgroup,group=="Respiratory"), aes(x=Cases.Pct.Differential, y=Shielders_pct)) + 
+#   geom_point()+
+#   geom_smooth(method=lm, se=FALSE)
 
 ggplot(filter(SPL_by_LA_dgroup,group=="Respiratory"), aes(x=Shielders_pct, y=Cases.Pct)) +
   geom_point() +
@@ -302,29 +334,27 @@ ggplot(filter(SPL_by_LA_dgroup,group=="Respiratory"), aes(x=Shielders_pct, y=Cas
   geom_point() +
   geom_text(aes(label=LA.Name), size=2)
 
-ggplot(filter(SPL_by_LA_dgroup,group=="Respiratory")) +
-  ylim(0, 10) +
-  geom_col(aes(x=reorder(LA.Name, Shielders_pct), y = Shielders_pct,fill = factor(over50_pct))) +
-  scale_fill_manual(values=c("#3288bd","#d53e4f"),name = "Respiratory cases",labels = c("<50%", ">50%")) +
-  theme(panel.border = element_blank(),
-        panel.grid.major = element_blank(),panel.grid.minor = element_blank(),
-        axis.text.x=element_blank(),axis.ticks.x=element_blank(),
-        panel.background = element_blank()) +
-  geom_hline(aes(yintercept=4.2),col="black", linetype="dashed") +
-  annotate(geom="text", label="4.2% (average)", x=35, y=4.2, vjust=-1,size=3) +
-  labs(title="Shielding patients by local authority",y = "% shielding",x="Local authority")
-
-ggplot(filter(SPL_by_LA_dgroup,group=="Respiratory")) +
+respiratory <- ggplot(filter(SPL_by_LA_dgroup,group=="Respiratory")) +
   ylim(0, 10) +
   geom_col(aes(x=reorder(LA.Name, Shielders_pct), y = Shielders_pct,fill = factor(levels_pct))) +
   scale_fill_brewer(palette="Spectral",name = "Respiratory cases",direction = -1,labels = c("<40%", "40-50%","50-60%",">60%")) +
   theme(panel.border = element_blank(),
         panel.grid.major = element_blank(),panel.grid.minor = element_blank(),
         axis.text.x=element_blank(),axis.ticks.x=element_blank(),
-        panel.background = element_blank()) +
-  geom_hline(aes(yintercept=4.2),col="black", linetype="dashed") +
-  annotate(geom="text", label="4.2% (average)", x=35, y=4.2, vjust=-1,size=3) +
+        panel.background = element_blank(),
+        text = element_text(family = "quicksand", size = 70)) +
+  geom_hline(aes(yintercept=4),col="black", linetype="dashed") +
+  annotate(geom="text", label="4% (average)", x=35, y=4, vjust=-1,size=20) +
   labs(title="Shielding patients by local authority",y = "% shielding",x="Local authority")
+
+windows()
+respiratory
+
+#Save chart
+setwd(str_replace_all(path.expand("~"), "Documents", ""))
+setwd("M:/Analytics/Networked Data Lab/Shielding/Graphs/")
+
+ggsave("respiratory.png", device="png",width = 10, height = 7,dpi=500)
 
 #####Cancer
 
@@ -398,15 +428,34 @@ pct_shielding_by_income_dep <- SPL_by_LA_All[, list(
   Shielders_pct=weighted.mean(Shielders_pct,pop18)), 
   by = list(decile_income)]
 
-ggplot(pct_shielding_by_income_dep) +
-  geom_col(aes(x=decile_income, y = Shielders_pct),fill = "dodgerblue2") +
-  geom_text(aes(x = decile_income, y = Shielders_pct + 0.15, label = round(Shielders_pct, 1))) +
-  theme(axis.title.x = element_blank(),
-        panel.border = element_blank(),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank()) +
-  theme_economist() + scale_colour_economist() +
-  labs(title="Shielding population",y = "% shielding",x="Income deprivation decile")
+cols <- colorRampPalette(brewer.pal(n = 9, name = "RdYlGn"))(10)
+deplabs <- c("1 (most deprived)",2:9,"10 (least deprived)")
+
+by_deprivation <- ggplot(pct_shielding_by_income_dep) +
+  geom_chicklet(aes(x=decile_income, y = Shielders_pct,fill=decile_income),
+                radius = grid::unit(5, 'mm')) +
+  geom_text(aes(x = decile_income, y = Shielders_pct + 0.2,
+                label = paste0(round(Shielders_pct, 1),"%")),
+            family="quicksand",size=20) +
+  theme(panel.border = element_blank(),
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(),axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),axis.ticks.x=element_blank(),
+        text = element_text(family = "quicksand", size = 70),
+        axis.text = element_text(size = 70),
+        axis.title.x = element_text(margin = unit(c(3, 0, 0, 0), "mm")))  +
+  scale_fill_manual(values=cols,guide=FALSE) +
+  scale_x_discrete(labels = deplabs) +
+  labs(title="Average % residents shielding",y = " ",x="Income deprivation decile")
+
+windows()
+by_deprivation
+
+#Save chart
+setwd(str_replace_all(path.expand("~"), "Documents", ""))
+setwd("M:/Analytics/Networked Data Lab/Shielding/Graphs/")
+
+ggsave("by_deprivation.png", device="png",width = 13, height = 4,dpi=500)
 
 ######################################################################
 ################### Number of shielders vs. pct over 65 ##############
@@ -418,7 +467,7 @@ ggplot(SPL_by_LA_All, aes(x=pct_over65_18, y=Shielders_pct)) +
 
 SPL_by_LA_All <- mutate(SPL_by_LA_All,
                         cat_pct_over65_18=cut(pct_over65_18, breaks=c(0,15,20,25,Inf),
-                                              labels=c("<15%","15-20%","20-25%",">25%")))
+                                              labels=c("15% or less","15-20%","20-25%","25% or more")))
 
 SPL_by_LA_All <- as.data.table(SPL_by_LA_All)
 
@@ -426,15 +475,34 @@ pct_shielding_by_ageg <- SPL_by_LA_All[, list(
   Shielders_pct=weighted.mean(Shielders_pct,pop18)), 
   by = list(cat_pct_over65_18)]
 
-ggplot(pct_shielding_by_ageg) +
-  geom_col(aes(x=cat_pct_over65_18, y = Shielders_pct),fill = "aquamarine3") +
-  geom_text(aes(x = cat_pct_over65_18, y = Shielders_pct + 0.15, label = round(Shielders_pct, 1))) +
-  theme(axis.title.x = element_blank(),
-        panel.border = element_blank(),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank()) +
-  theme_economist() + scale_colour_economist() +
-  labs(title="Shielding population",y = "% shielding",x="Over 65")
+cols <- brewer.pal(n = 8, name = "GnBu")[5:8]
+agelabs <- c("<15% over 65","15-20% over 65","20-25% over 65",">25% over 65")
+  
+plot_age <- ggplot(pct_shielding_by_ageg) +
+  geom_chicklet(aes(x=cat_pct_over65_18, y = Shielders_pct,fill=cat_pct_over65_18),
+                radius = grid::unit(5, 'mm')) +
+  geom_text(aes(x = cat_pct_over65_18, y = Shielders_pct + 0.2,
+                label = paste0(round(Shielders_pct, 1),"%")),
+            family="quicksand",size=10) +
+  theme(panel.border = element_blank(),
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(),axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),axis.ticks.x=element_blank(),
+        text = element_text(family = "quicksand", size = 30),
+        axis.text = element_text(size = 30),
+        axis.title.x = element_text(margin = unit(c(3, 0, 0, 0), "mm"))) +
+  scale_fill_manual(values=cols,guide=FALSE) +
+  scale_x_discrete(labels = agelabs) +
+  labs(title="Average % residents shielding",y = " ",x="Local authorities")
+
+windows()
+plot_age
+
+#Save chart
+setwd(str_replace_all(path.expand("~"), "Documents", ""))
+setwd("M:/Analytics/Networked Data Lab/Shielding/Graphs/")
+
+ggsave("over65.png", device="png",width = 4, height = 3,dpi=500)
 
 ##############################################################
 ################### Number of shielders per GOR ##############
@@ -446,15 +514,31 @@ SPL_by_GOR <- SPL_by_LA_All[, list(Shielders_pct=weighted.mean(Shielders_pct,pop
                                    RGN11NM=first(RGN11NM)), 
                             by = list(RGN11CD)]
 
-ggplot(SPL_by_GOR) + geom_col(aes(x=reorder(RGN11NM, Shielders_pct), y = Shielders_pct),fill = "cornflowerblue") +
-  geom_text(aes(x = RGN11NM, y = Shielders_pct + 0.15, label = round(Shielders_pct, 1))) +
+plot_by_gor <- ggplot(SPL_by_GOR) +
+  geom_chicklet(aes(x=reorder(RGN11NM, Shielders_pct), y = Shielders_pct),
+                fill = "firebrick",radius = grid::unit(5, 'mm')) +
+  geom_text(aes(x = RGN11NM, y = Shielders_pct + 0.25,
+                label = paste0(round(Shielders_pct, 1),"%")),
+            family="quicksand",size=15) +
   theme(axis.title.x = element_blank(),
         panel.border = element_blank(),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
-        axis.text.x=element_text(angle=45, hjust=1),
-        panel.background = element_blank()) +
-  labs(title="Shielding population",y = "% shielding",x="")
+        axis.text.x=element_text(angle=45, hjust=1),axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),axis.ticks.x=element_blank(),
+        panel.background = element_blank(),
+        text = element_text(family = "quicksand", size = 70)) +
+  labs(title="Average % residents shielding",y = " ",x="")
+
+
+windows()
+plot_by_gor
+
+#Save chart
+setwd(str_replace_all(path.expand("~"), "Documents", ""))
+setwd("M:/Analytics/Networked Data Lab/Shielding/Graphs/")
+
+ggsave("by_gor.png", device="png",width = 10, height = 4,dpi=500)
 
 #################################################################################
 ################### Map of number of shielders per 1,000 residents ##############
@@ -501,3 +585,15 @@ leaflet(LAD_2019_shp) %>%
         colors = colors,
         labels = deciles[1:10], opacity = 1
       )
+	  
+# ggplot(filter(SPL_by_LA_dgroup,group=="Respiratory")) +
+#   ylim(0, 10) +
+#   geom_col(aes(x=reorder(LA.Name, Shielders_pct), y = Shielders_pct,fill = factor(over50_pct))) +
+#   scale_fill_manual(values=c("#3288bd","#d53e4f"),name = "Respiratory cases",labels = c("<50%", ">50%")) +
+#   theme(panel.border = element_blank(),
+#         panel.grid.major = element_blank(),panel.grid.minor = element_blank(),
+#         axis.text.x=element_blank(),axis.ticks.x=element_blank(),
+#         panel.background = element_blank()) +
+#   geom_hline(aes(yintercept=4),col="black", linetype="dashed") +
+#   annotate(geom="text", label="4% (average)", x=35, y=4, vjust=-1,size=3) +
+#   labs(title="Shielding patients by local authority",y = "% shielding",x="Local authority")
