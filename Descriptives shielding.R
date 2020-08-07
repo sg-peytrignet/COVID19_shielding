@@ -308,6 +308,65 @@ ggplot(SPL_by_LA_All, aes(Shielders_pct, fill = cut(Shielders_pct, 100))) +
   geom_histogram(show.legend = FALSE) + theme_minimal() + labs(x = "% shielders", y = "n") +
   ggtitle("Histogram") + scale_fill_discrete(h = c(240, 10), c = 120, l = 70)
 
+###########################################################
+############## Gender differences in shielding ############
+###########################################################
+
+SPL_by_LA_Gender <- filter(SPL_by_LA,Breakdown.Field=="Gender"&LA.Name=="ENGLAND")
+
+men_england <-  56286961*0.49
+women_england <-  56286961*0.51
+
+gender <- c("Men","Women")
+rate_shielding <- c(as.numeric(filter(SPL_by_LA_Gender,Breakdown.Value=="Male")$Patient.Count)/men_england*100,
+                    as.numeric(filter(SPL_by_LA_Gender,Breakdown.Value=="Female")$Patient.Count)/women_england*100)
+
+by_gender <- cbind.data.frame(gender,rate_shielding)
+
+dotplot_gender <- ggplot(by_gender,
+                            aes(rate_shielding, reorder(gender, rate_shielding))) +
+  xlim(3, 5) +
+  geom_point(aes(col=gender),size=4) +
+  geom_text(aes(x=rate_shielding+0.2,label=paste0(round(rate_shielding,1),"%")),
+            family="quicksand",size=25) +
+  theme(panel.background = element_blank(),axis.ticks.x=element_blank(),
+        axis.text.x=element_blank(),axis.ticks.y=element_blank(),
+        text = element_text(family = "quicksand", size = 80),
+        legend.position = "none") +
+  labs(title="Likelihood of shielding by gender",y = " ",x=" ")
+
+windows()
+dotplot_gender
+
+#Save chart
+setwd(str_replace_all(path.expand("~"), "Documents", ""))
+setwd("M:/Analytics/Networked Data Lab/Shielding/Graphs/")
+
+ggsave("dotplot_gender.png", device="png",width = 5, height = 5,dpi=500)
+
+###########################################################
+############## Reasons for shielding dot plot #############
+###########################################################
+
+dotplot_condition <- ggplot(filter(SPL_by_LA_dgroup,LA.Name=="ENGLAND"),
+                            aes(Cases.Pct, reorder(group, Cases.Pct))) +
+  geom_point(size=4,col="springgreen4") +
+  geom_text(aes(x=Cases.Pct+3,label=paste0(round(Cases.Pct,1),"%")),
+            family="quicksand",size=25) +
+  theme(panel.background = element_blank(),axis.ticks.x=element_blank(),
+        axis.text.x=element_blank(),axis.ticks.y=element_blank(),
+        text = element_text(family = "quicksand", size = 80)) +
+  labs(title="Conditions",y = " ",x=" ")
+
+windows()
+dotplot_condition
+
+#Save chart
+setwd(str_replace_all(path.expand("~"), "Documents", ""))
+setwd("C:/Users/SebastienP/OneDrive - The Health Foundation/Shielding/Graphs/")
+
+ggsave("dotplot_condition.png", device="png",width = 10, height = 5,dpi=500)
+
 ###########################################################################
 ############## Bar chart per condition - national discrepancy #############
 ###########################################################################
@@ -337,14 +396,15 @@ ggplot(filter(SPL_by_LA_dgroup,group=="Respiratory"), aes(x=Shielders_pct, y=Cas
 respiratory <- ggplot(filter(SPL_by_LA_dgroup,group=="Respiratory")) +
   ylim(0, 10) +
   geom_col(aes(x=reorder(LA.Name, Shielders_pct), y = Shielders_pct,fill = factor(levels_pct))) +
-  scale_fill_brewer(palette="Spectral",name = "Respiratory cases",direction = -1,labels = c("<40%", "40-50%","50-60%",">60%")) +
+  scale_fill_brewer(palette="Spectral",name = "Respiratory cases",direction = -1,
+                    labels = c("<40%", "40-50%","50-60%",">60%")) +
   theme(panel.border = element_blank(),
         panel.grid.major = element_blank(),panel.grid.minor = element_blank(),
         axis.text.x=element_blank(),axis.ticks.x=element_blank(),
         panel.background = element_blank(),
-        text = element_text(family = "quicksand", size = 70)) +
+        text = element_text(family = "quicksand", size = 85)) +
   geom_hline(aes(yintercept=4),col="black", linetype="dashed") +
-  annotate(geom="text", label="4% (average)", x=35, y=4, vjust=-1,size=20) +
+  annotate(geom="text", label="4% (average)", x=35, y=4, vjust=-1,size=25) +
   labs(title="Shielding patients by local authority",y = "% shielding",x="Local authority")
 
 windows()
@@ -352,7 +412,7 @@ respiratory
 
 #Save chart
 setwd(str_replace_all(path.expand("~"), "Documents", ""))
-setwd("M:/Analytics/Networked Data Lab/Shielding/Graphs/")
+setwd("C:/Users/SebastienP/OneDrive - The Health Foundation/Shielding/Graphs/")
 
 ggsave("respiratory.png", device="png",width = 10, height = 7,dpi=500)
 
@@ -394,55 +454,56 @@ SPL_by_LA_All <- left_join(SPL_by_LA_All,IMD2019_LA_wide,by=c("LA.Code"="Feature
 
 #General deprivation
 
-ggplot(SPL_by_LA_All, aes(x=pctdep_IMD, y=Shielders_pct)) + 
-  geom_point()+
-  geom_smooth(method=lm, se=FALSE)
-
-ggplot(SPL_by_LA_All, aes(x=avgscore_imd, y=Shielders_pct)) + 
-  geom_point()+
-  geom_smooth(method=lm, se=FALSE)
+# ggplot(SPL_by_LA_All, aes(x=pctdep_IMD, y=Shielders_pct)) + 
+#   geom_point()+
+#   geom_smooth(method=lm, se=FALSE)
+# 
+# ggplot(SPL_by_LA_All, aes(x=avgscore_imd, y=Shielders_pct)) + 
+#   geom_point()+
+#   geom_smooth(method=lm, se=FALSE)
 
 #Health deprivation
 
-ggplot(SPL_by_LA_All, aes(x=pctdep_health, y=Shielders_pct)) + 
-  geom_point()+
-  geom_smooth(method=lm, se=FALSE)
-
-ggplot(SPL_by_LA_All, aes(x=avgscore_health, y=Shielders_pct)) + 
-  geom_point()+
-  geom_smooth(method=lm, se=FALSE)
+# ggplot(SPL_by_LA_All, aes(x=pctdep_health, y=Shielders_pct)) + 
+#   geom_point()+
+#   geom_smooth(method=lm, se=FALSE)
+# 
+# ggplot(SPL_by_LA_All, aes(x=avgscore_health, y=Shielders_pct)) + 
+#   geom_point()+
+#   geom_smooth(method=lm, se=FALSE)
 
 #Income deprivation
 
-ggplot(SPL_by_LA_All, aes(x=pctdep_income, y=Shielders_pct)) + 
-  geom_point()+
-  geom_smooth(method=lm, se=FALSE)
-
-ggplot(SPL_by_LA_All, aes(x=avgscore_income, y=Shielders_pct)) + 
-  geom_point()+
-  geom_smooth(method=lm, se=FALSE)
+# ggplot(SPL_by_LA_All, aes(x=pctdep_income, y=Shielders_pct)) + 
+#   geom_point()+
+#   geom_smooth(method=lm, se=FALSE)
+# 
+# ggplot(SPL_by_LA_All, aes(x=avgscore_income, y=Shielders_pct)) + 
+#   geom_point()+
+#   geom_smooth(method=lm, se=FALSE)
 
 SPL_by_LA_All <- as.data.table(SPL_by_LA_All)
 
 pct_shielding_by_income_dep <- SPL_by_LA_All[, list(
   Shielders_pct=weighted.mean(Shielders_pct,pop18)), 
-  by = list(decile_income)]
+  by = list(decile_income)] %>%
+  filter(.,!is.na(decile_income))
 
 cols <- colorRampPalette(brewer.pal(n = 9, name = "RdYlGn"))(10)
 deplabs <- c("1 (most deprived)",2:9,"10 (least deprived)")
 
 by_deprivation <- ggplot(pct_shielding_by_income_dep) +
   geom_chicklet(aes(x=decile_income, y = Shielders_pct,fill=decile_income),
-                radius = grid::unit(5, 'mm')) +
+                radius = grid::unit(5, 'mm'),width = 0.75) +
   geom_text(aes(x = decile_income, y = Shielders_pct + 0.2,
                 label = paste0(round(Shielders_pct, 1),"%")),
-            family="quicksand",size=20) +
+            family="quicksand",size=25) +
   theme(panel.border = element_blank(),
         panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(),axis.text.y=element_blank(),
         axis.ticks.y=element_blank(),axis.ticks.x=element_blank(),
-        text = element_text(family = "quicksand", size = 70),
-        axis.text = element_text(size = 70),
+        text = element_text(family = "quicksand", size = 80),
+        axis.text = element_text(size = 80),
         axis.title.x = element_text(margin = unit(c(3, 0, 0, 0), "mm")))  +
   scale_fill_manual(values=cols,guide=FALSE) +
   scale_x_discrete(labels = deplabs) +
@@ -453,17 +514,20 @@ by_deprivation
 
 #Save chart
 setwd(str_replace_all(path.expand("~"), "Documents", ""))
-setwd("M:/Analytics/Networked Data Lab/Shielding/Graphs/")
+setwd("C:/Users/SebastienP/OneDrive - The Health Foundation/Shielding/Graphs/")
 
-ggsave("by_deprivation.png", device="png",width = 13, height = 4,dpi=500)
+ggsave("by_deprivation.png", device="png",width = 16, height = 4,dpi=500)
 
 ######################################################################
 ################### Number of shielders vs. pct over 65 ##############
 ######################################################################
 
-ggplot(SPL_by_LA_All, aes(x=pct_over65_18, y=Shielders_pct)) + 
-  geom_point()+
-  geom_smooth(method=lm, se=FALSE)
+# ggplot(SPL_by_LA_All, aes(x=pct_over65_18, y=Shielders_pct)) + 
+#   geom_point()+
+#   geom_smooth(method=lm, se=FALSE)
+
+head(dplyr::arrange(SPL_by_LA_All, pct_over65_18),n=10)
+tail(dplyr::arrange(SPL_by_LA_All, pct_over65_18),n=10)
 
 SPL_by_LA_All <- mutate(SPL_by_LA_All,
                         cat_pct_over65_18=cut(pct_over65_18, breaks=c(0,15,20,25,Inf),
@@ -480,16 +544,16 @@ agelabs <- c("<15% over 65","15-20% over 65","20-25% over 65",">25% over 65")
   
 plot_age <- ggplot(pct_shielding_by_ageg) +
   geom_chicklet(aes(x=cat_pct_over65_18, y = Shielders_pct,fill=cat_pct_over65_18),
-                radius = grid::unit(5, 'mm')) +
+                radius = grid::unit(5, 'mm'),width=0.5) +
   geom_text(aes(x = cat_pct_over65_18, y = Shielders_pct + 0.2,
                 label = paste0(round(Shielders_pct, 1),"%")),
-            family="quicksand",size=10) +
+            family="quicksand",size=15) +
   theme(panel.border = element_blank(),
         panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(),axis.text.y=element_blank(),
         axis.ticks.y=element_blank(),axis.ticks.x=element_blank(),
-        text = element_text(family = "quicksand", size = 30),
-        axis.text = element_text(size = 30),
+        text = element_text(family = "quicksand", size = 45),
+        axis.text = element_text(size = 45),
         axis.title.x = element_text(margin = unit(c(3, 0, 0, 0), "mm"))) +
   scale_fill_manual(values=cols,guide=FALSE) +
   scale_x_discrete(labels = agelabs) +
@@ -500,9 +564,9 @@ plot_age
 
 #Save chart
 setwd(str_replace_all(path.expand("~"), "Documents", ""))
-setwd("M:/Analytics/Networked Data Lab/Shielding/Graphs/")
+setwd("C:/Users/SebastienP/OneDrive - The Health Foundation/Shielding/Graphs/")
 
-ggsave("over65.png", device="png",width = 4, height = 3,dpi=500)
+ggsave("over65.png", device="png",width = 5, height = 3,dpi=500)
 
 ##############################################################
 ################### Number of shielders per GOR ##############
@@ -514,12 +578,26 @@ SPL_by_GOR <- SPL_by_LA_All[, list(Shielders_pct=weighted.mean(Shielders_pct,pop
                                    RGN11NM=first(RGN11NM)), 
                             by = list(RGN11CD)]
 
+#Add other countries
+
+Scotland <- as.data.frame(t(c("Unknown",180000/(5.454*1000000)*100,"Scotland")))
+names(Scotland) <- names(SPL_by_GOR)
+
+NI <- as.data.frame(t(c("Unknown",80000/(1.882*1000000)*100,"Northern Ireland")))
+names(NI) <- names(SPL_by_GOR)
+
+SPL_by_GOR <- rbind(SPL_by_GOR,Scotland,NI)
+
+SPL_by_GOR$Shielders_pct <- as.numeric(SPL_by_GOR$Shielders_pct)
+
+#chart
+
 plot_by_gor <- ggplot(SPL_by_GOR) +
   geom_chicklet(aes(x=reorder(RGN11NM, Shielders_pct), y = Shielders_pct),
-                fill = "firebrick",radius = grid::unit(5, 'mm')) +
-  geom_text(aes(x = RGN11NM, y = Shielders_pct + 0.25,
+                fill = "firebrick",radius = grid::unit(5, 'mm'),width=0.50) +
+  geom_text(aes(x = RGN11NM, y = Shielders_pct + 0.45,
                 label = paste0(round(Shielders_pct, 1),"%")),
-            family="quicksand",size=15) +
+            family="quicksand",size=25) +
   theme(axis.title.x = element_blank(),
         panel.border = element_blank(),
         panel.grid.major = element_blank(),
@@ -527,7 +605,7 @@ plot_by_gor <- ggplot(SPL_by_GOR) +
         axis.text.x=element_text(angle=45, hjust=1),axis.text.y=element_blank(),
         axis.ticks.y=element_blank(),axis.ticks.x=element_blank(),
         panel.background = element_blank(),
-        text = element_text(family = "quicksand", size = 70)) +
+        text = element_text(family = "quicksand", size = 90)) +
   labs(title="Average % residents shielding",y = " ",x="")
 
 
@@ -536,9 +614,41 @@ plot_by_gor
 
 #Save chart
 setwd(str_replace_all(path.expand("~"), "Documents", ""))
-setwd("M:/Analytics/Networked Data Lab/Shielding/Graphs/")
+setwd("C:/Users/SebastienP/OneDrive - The Health Foundation/Shielding/Graphs/")
 
-ggsave("by_gor.png", device="png",width = 10, height = 4,dpi=500)
+ggsave("by_gor.png", device="png",width = 15, height = 4,dpi=500)
+
+##############################################################################
+################### Waffle chart for number of people shielding ##############
+##############################################################################
+
+library(waffle)
+library(extrafont)
+
+# fa_font <- tempfile(fileext = ".ttf")
+# download.file("http://maxcdn.bootstrapcdn.com/font-awesome/4.3.0/fonts/fontawesome-webfont.ttf?v=4.3.0",
+#               destfile = fa_font, method = "curl")
+# 
+# font_import(paths = dirname(fa_font), prompt = FALSE)
+
+loadfonts(device = "win")
+
+fa_list()
+
+shielding <- c(`Category 1 (10)`= 96 , `Category 2 (20)`= 4)
+
+waffle_plot <- waffle(shielding/2, rows=5, use_glyph = "male",
+                      colors=c("darkgray","firebrick"),
+                      legend_pos="none")
+
+windows()
+waffle_plot
+
+#Save chart
+setwd(str_replace_all(path.expand("~"), "Documents", ""))
+setwd("C:/Users/SebastienP/OneDrive - The Health Foundation/Shielding/Graphs/")
+
+ggsave("waffle.png", device="png",width = 5, height = 5,dpi=500)
 
 #################################################################################
 ################### Map of number of shielders per 1,000 residents ##############
